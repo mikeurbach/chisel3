@@ -4,7 +4,7 @@ enablePlugins(SiteScaladocPlugin)
 
 val defaultVersions = Map(
   "firrtl" -> "edu.berkeley.cs" %% "firrtl" % "1.6-SNAPSHOT",
-  "treadle" -> "edu.berkeley.cs" %% "treadle" % "1.6-SNAPSHOT",
+  "treadle" -> "edu.berkeley.cs" %% "treadle" % "1.6-SNAPSHOT"
   // chiseltest intentionally excluded so that release automation does not try to set its version
   // The projects using chiseltest are not published, but SBT resolves dependencies for all projects
   // when doing publishing and will not find a chiseltest release since chiseltest depends on
@@ -183,6 +183,10 @@ lazy val core = (project in file("core"))
     )
   )
   .dependsOn(macros)
+  .dependsOn(nativeMLIR % Runtime)
+
+lazy val nativeMLIR = (project in file("native-mlir"))
+  .enablePlugins(JniNative)
 
 // This will always be the root project, even if we are a sub-project.
 lazy val root = RootProject(file("."))
@@ -195,7 +199,8 @@ lazy val chisel = (project in file("."))
   .settings(usePluginSettings: _*)
   .dependsOn(macros)
   .dependsOn(core)
-  .aggregate(macros, core, plugin)
+  .dependsOn(nativeMLIR % Runtime)
+  .aggregate(macros, core, plugin, nativeMLIR)
   .settings(
     mimaPreviousArtifacts := Set(),
     libraryDependencies += defaultVersions("treadle") % "test",
