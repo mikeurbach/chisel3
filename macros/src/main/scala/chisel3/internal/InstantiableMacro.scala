@@ -29,8 +29,11 @@ private[chisel3] object instantiableMacro {
                 c.error(aVal.pos, s"Cannot mark a private or protected val as @public")
                 Nil
               case aVal: ValDef =>
-                extensions += atPos(aVal.pos)(q"def ${aVal.name} = ___module._lookup(_.${aVal.name})")
-                if (aVal.name.toString == aVal.children.last.toString) Nil else Seq(aVal)
+                extensions += atPos(aVal.pos)(
+                  q"def ${aVal.name} = ___module._lookup(_.${aVal.name})"
+                )
+                if (aVal.name.toString == aVal.children.last.toString) Nil
+                else Seq(q"val ${aVal.name} = chisel3.Field(${aVal.rhs})")
               case other => Seq(other)
             }
           case other => Seq(other)

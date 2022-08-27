@@ -114,6 +114,8 @@ abstract class RawModule(implicit moduleCompileOptions: CompileOptions) extends 
                 id.forceName(default = "REG", _namespace)
               case WireBinding(_, _) =>
                 id.forceName(default = "_WIRE", _namespace)
+              case FieldBinding(_) =>
+                id.forceName(default = "FIELD", _namespace)
               case _ => // don't name literals
             }
           } // else, don't name unbound types

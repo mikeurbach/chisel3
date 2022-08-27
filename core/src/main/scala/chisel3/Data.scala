@@ -986,6 +986,21 @@ trait WireFactory {
   }
 }
 
+object Field {
+  def apply[T <: Data](source: => T)(implicit sourceInfo: SourceInfo, compileOptions: CompileOptions): T = {
+    val prevId = Builder.idGen.value
+    val t = source // evaluate once (passed by name)
+    val x = if (!t.mustClone(prevId)) t else t.cloneTypeFull
+
+    // Bind each element of x to being a Field
+    x.bind(FieldBinding(Builder.forcedUserModule))
+
+    pushCommand(DefField(sourceInfo, x, t))
+
+    t
+  }
+}
+
 /** Utility for constructing hardware wires
   *
   * The width of a `Wire` (inferred or not) is copied from the type template

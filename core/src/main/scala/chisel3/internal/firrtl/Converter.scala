@@ -120,6 +120,8 @@ private[chisel3] object Converter {
           fir.DoPrim(convert(e.op), args, consts, fir.UnknownType)
       }
       Some(fir.DefNode(convert(e.sourceInfo), e.name, expr))
+    case e @ DefField(info, id, source) =>
+      Some(fir.DefField(convert(info), e.name, convert(getRef(source, info), ctx, info)))
     case e @ DefWire(info, id) =>
       Some(fir.DefWire(convert(info), e.name, extractType(id, info)))
     case e @ DefReg(info, id, clock) =>

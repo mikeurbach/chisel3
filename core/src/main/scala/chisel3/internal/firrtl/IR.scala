@@ -798,6 +798,7 @@ abstract class Definition extends Command {
   def id: HasId
   def name: String = id.getRef.name
 }
+case class DefField[T <: Data](sourceInfo: SourceInfo, id: T, source: T) extends Definition
 case class DefPrim[T <: Data](sourceInfo: SourceInfo, id: T, op: PrimOp, args: Arg*) extends Definition
 case class DefInvalid(sourceInfo: SourceInfo, arg: Arg) extends Command
 case class DefWire(sourceInfo: SourceInfo, id: Data) extends Definition

@@ -538,7 +538,7 @@ private[chisel3] object Builder extends LazyLogging {
         a.flatMap(ax => b.map(f(ax, _)))
       // If the binding is None, this is an illegal connection and later logic will error
       def recData(data: Data): Option[String] = data.binding.flatMap {
-        case (_: WireBinding | _: RegBinding | _: MemoryPortBinding | _: OpBinding) => data.seedOpt
+        case (_: WireBinding | _: RegBinding | _: MemoryPortBinding | _: OpBinding | _: FieldBinding) => data.seedOpt
         case ChildBinding(parent) =>
           recData(parent).map { p =>
             // And name of the field if we have one, we don't for dynamic indexing of Vecs
