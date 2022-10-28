@@ -454,6 +454,8 @@ private[chisel3] class DynamicContext(
 
   // Used to indicate if this is the top-level module of full elaboration, or from a Definition
   var inDefinition: Boolean = false
+
+  var verbatimMode: Boolean = false
 }
 
 private[chisel3] object Builder extends LazyLogging {
@@ -512,6 +514,11 @@ private[chisel3] object Builder extends LazyLogging {
 
   def unnamedViews:  ArrayBuffer[Data] = dynamicContext.unnamedViews
   def viewNamespace: Namespace = chiselContext.get.viewNamespace
+
+  def setVerbatimMode(setting: Boolean) = {
+    dynamicContext.verbatimMode = setting
+  }
+  def isVerbatimMode = dynamicContext.verbatimMode
 
   // Puts a prefix string onto the prefix stack
   def pushPrefix(d: String): Unit = {

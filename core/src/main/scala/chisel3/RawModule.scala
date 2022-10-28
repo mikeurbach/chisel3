@@ -123,6 +123,10 @@ abstract class RawModule(implicit moduleCompileOptions: CompileOptions) extends 
 
     closeUnboundIds(names)
 
+    // If verbatim mode is enabled, dont touch all public fields.
+    if (Builder.isVerbatimMode)
+      dontTouchPublicFields(names.keys)
+
     val firrtlPorts = getModulePorts.map { port: Data =>
       // Special case Vec to make FIRRTL emit the direction of its
       // element.

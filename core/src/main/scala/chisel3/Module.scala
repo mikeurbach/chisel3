@@ -10,8 +10,9 @@ import chisel3.internal._
 import chisel3.internal.Builder._
 import chisel3.internal.firrtl._
 import chisel3.internal.sourceinfo.{InstTransform, SourceInfo, UnlocatableSourceInfo}
-import chisel3.experimental.BaseModule
+import chisel3.experimental.{BaseModule, ChiselAnnotation}
 import _root_.firrtl.annotations.{IsModule, ModuleName, ModuleTarget}
+import _root_.firrtl.transforms.DontTouchAnnotation
 import _root_.firrtl.AnnotationSeq
 
 object Module extends SourceInfoDoc {
@@ -41,6 +42,7 @@ object Module extends SourceInfoDoc {
     // Save then clear clock and reset to prevent leaking scope, must be set again in the Module
     val (saveClock, saveReset) = (Builder.currentClock, Builder.currentReset)
     val savePrefix = Builder.getPrefix
+    val saveVerbatimMode = Builder.isVerbatimMode
     Builder.clearPrefix()
     Builder.currentClock = None
     Builder.currentReset = None
@@ -74,6 +76,7 @@ object Module extends SourceInfoDoc {
     }
 
     Builder.setPrefix(savePrefix)
+    Builder.setVerbatimMode(saveVerbatimMode)
 
     // Handle connections at enclosing scope
     // We use _component because Modules that don't generate them may still have one
@@ -676,6 +679,39 @@ package experimental {
       for ((id, _) <- names if !idLookup(id)) {
         id._onModuleClose
       }
+    }
+
+    /** Applies a DontTouchAnnotation to all elements of public fields with "meaningful" names. */
+    private[chisel3] def dontTouchPublicFields(names: Iterable[HasId]): Unit = {
+      def dontTouchRecursively(hasId: HasId): Unit = {
+        // We can't annotate at or below a subaccess.
+        val isSubAccess = hasId.getOptionRef.map {
+          ref => ref match {
+            case Index(_, idx: Node) => true
+            case _ => false
+          }
+        }.getOrElse(false)
+        if (isSubAccess)
+          return
+
+        hasId match {
+          case _: DontCare.type => // Don't care? Won't annotate.
+          case record: Record =>
+            record.elements.foreach {
+              case (_, fieldData) => dontTouchRecursively(fieldData)
+            }
+          case vec: Vec[_] =>
+            vec.getElements.foreach {
+              case fieldData => dontTouchRecursively(fieldData)
+            }
+          case element: Element if element.isSynthesizable && !element.isLit && !Arg.earlyLocalName(element).startsWith("_") =>
+            Builder.annotations += new ChiselAnnotation { def toFirrtl = { DontTouchAnnotation(element.toNamed) } }
+          case _ =>
+        }
+      }
+
+      for (name <- names)
+        dontTouchRecursively(name)
     }
 
     /** Compatibility function. Allows Chisel2 code which had ports without the IO wrapper to
