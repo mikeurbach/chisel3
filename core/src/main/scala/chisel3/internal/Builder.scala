@@ -242,7 +242,7 @@ private[chisel3] trait HasId extends chisel3.InstanceId {
         } else {
           // Otherwise the candidate name duplicates an existing name
           Builder.error(
-            s"Attempted to name $this with a duplicated name '$candidate_name'. Use suggestName to seed a unique name"
+            s"Attempted to name $this with a duplicated name '$candidate_name', available = $available_name. Use suggestName to seed a unique name"
           )(UnlocatableSourceInfo)
         }
       }

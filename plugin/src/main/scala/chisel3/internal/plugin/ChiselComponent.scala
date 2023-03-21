@@ -149,6 +149,33 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
       definitions.isTupleType(tpe) && okFlags(dd.mods) && !isNull && dd.rhs != EmptyTree
     }
 
+    // Indicates whether a DefDef is properly formed to get name
+    private def okDef(dd: DefDef): Boolean = {
+      // Skip defs of block to maintain existing behavior with prefixing.
+      val isNotBlock = dd.rhs match {
+        case Block(_, _) => false
+        case _ => true
+      }
+
+      // Skip defs of simple identifiers or selectors so the name is only applied to the original.
+      val isNotIdent = dd.rhs match {
+        case Ident(_) => false
+        case Select(_, _) => false
+        case _ => true
+      }
+
+      // Skip defs for <init> constructors.
+      val isNotConstructor = !dd.symbol.isConstructor
+
+      // Skip defs with type parameters.
+      val isTparamsEmpty = dd.tparams.isEmpty
+
+      // Skip defs with any value parameters.
+      val isVparamssEmpty = dd.vparamss.isEmpty || dd.vparamss.map(_.isEmpty).reduce(_ && _)
+
+      isNotBlock && isNotIdent && isNotConstructor && isTparamsEmpty && isVparamssEmpty
+    }
+
     private def findUnapplyNames(tree: Tree): Option[List[String]] = {
       val applyArgs: Option[List[Tree]] = tree match {
         case Match(_, List(CaseDef(_, _, Apply(_, args)))) => Some(args)
@@ -190,6 +217,7 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
       // If a Data or a Memory, get the name and a prefix
       else if (isData || isPrefixed) {
         val str = stringFromTermName(name)
+        println(s"naming $str for $rhs")
         // Starting with '_' signifies a temporary, we ignore it for prefixing because we don't
         // want double "__" in names when the user is just specifying a temporary
         val prefix = if (str.head == '_') str.tail else str
@@ -250,9 +278,19 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
           case Some(named) => treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
           case None => super.transform(tree)
         }
+      case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs) if okVal(dd) && okDef(dd) =>
+        transformDef(dd.symbol, name, tpt, rhs) match {
+          case Some(named) => treeCopy.DefDef(dd, mods, name, tparams, vparamss, tpt, localTyper.typed(named))
+          case None => super.transform(tree)
+        }
       case dd @ ValDef(mods, name, tpt, rhs @ Match(_, _)) if okUnapply(dd) =>
         transformDefMatch(name, tpt, rhs) match {
           case Some(named) => treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
+          case None => super.transform(tree)
+        }
+      case dd @ DefDef(mods, name, tparams, vparamss, tpt, rhs @ Match(_, _)) if okUnapply(dd) && okDef(dd) =>
+        transformDefMatch(name, tpt, rhs) match {
+          case Some(named) => treeCopy.DefDef(dd, mods, name, tparams, vparamss, tpt, localTyper.typed(named))
           case None => super.transform(tree)
         }
       // Otherwise, continue
