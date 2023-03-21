@@ -97,8 +97,8 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
     // Given a type tree, infer the type and return it
     private def inferType(t: Tree): Type = localTyper.typed(t, nsc.Mode.TYPEmode).tpe
 
-    // Indicates whether a ValDef is properly formed to get name
-    private def okVal(dd: ValDef): Boolean = {
+    // Indicates whether a ValOrDefDef is properly formed to get name
+    private def okVal(dd: ValOrDefDef): Boolean = {
 
       // These were found through trial and error
       def okFlags(mods: Modifiers): Boolean = {
@@ -122,7 +122,7 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
       okFlags(dd.mods) && !isNull && dd.rhs != EmptyTree
     }
     // TODO Unify with okVal
-    private def okUnapply(dd: ValDef): Boolean = {
+    private def okUnapply(dd: ValOrDefDef): Boolean = {
 
       // These were found through trial and error
       def okFlags(mods: Modifiers): Boolean = {
@@ -167,79 +167,93 @@ class ChiselComponent(val global: Global, arguments: ChiselPluginArguments)
     }
 
     // Whether this val is directly enclosed by a Bundle type
-    private def inBundle(dd: ValDef): Boolean = {
-      dd.symbol.logicallyEnclosingMember.thisType <:< inferType(tq"chisel3.Bundle")
+    private def inBundle(symbol: Symbol): Boolean = {
+      symbol.logicallyEnclosingMember.thisType <:< inferType(tq"chisel3.Bundle")
     }
 
     private def stringFromTermName(name: TermName): String =
       name.toString.trim() // Remove trailing space (Scalac implementation detail)
 
+    private def transformDef(symbol: Symbol, name: TermName, tpt: Tree, rhs: Tree): Option[Tree] = {
+      val tpe = inferType(tpt)
+      val isData = shouldMatchData(tpe)
+      val isNamedComp = isData || shouldMatchNamedComp(tpe)
+      val isPrefixed = isNamedComp || shouldMatchChiselPrefixed(tpe)
+
+      // If a Data and in a Bundle, just get the name but not a prefix
+      if (isData && inBundle(symbol)) {
+        val str = stringFromTermName(name)
+        val newRHS = transform(rhs) // chisel3.internal.plugin.autoNameRecursively
+        val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
+        Some(named)
+      }
+      // If a Data or a Memory, get the name and a prefix
+      else if (isData || isPrefixed) {
+        val str = stringFromTermName(name)
+        // Starting with '_' signifies a temporary, we ignore it for prefixing because we don't
+        // want double "__" in names when the user is just specifying a temporary
+        val prefix = if (str.head == '_') str.tail else str
+        val newRHS = transform(rhs)
+        val prefixed = q"chisel3.experimental.prefix.apply[$tpt](name=$prefix)(f=$newRHS)"
+
+        val named =
+          if (isNamedComp) {
+            // Only name named components (not things that are merely prefixed)
+            q"chisel3.internal.plugin.autoNameRecursively($str)($prefixed)"
+          } else {
+            prefixed
+          }
+
+        Some(named)
+      }
+      // If an instance, just get a name but no prefix
+      else if (shouldMatchModule(tpe)) {
+        val str = stringFromTermName(name)
+        val newRHS = transform(rhs)
+        val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
+        Some(named)
+      } else if (shouldMatchInstance(tpe)) {
+        val str = stringFromTermName(name)
+        val newRHS = transform(rhs)
+        val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
+        Some(named)
+      } else {
+        // Otherwise, continue
+        None
+      }
+    }
+
+    private def transformDefMatch(name: TermName, tpt: Tree, rhs: Tree): Option[Tree] = {
+      val tpe = inferType(tpt)
+      val fieldsOfInterest: List[Boolean] = tpe.typeArgs.map(shouldMatchData)
+      // Only transform if at least one field is of interest
+      if (fieldsOfInterest.reduce(_ || _)) {
+        findUnapplyNames(rhs) match {
+          case Some(names) =>
+            val onames: List[Option[String]] =
+              fieldsOfInterest.zip(names).map { case (ok, name) => if (ok) Some(name) else None }
+            val named = q"chisel3.internal.plugin.autoNameRecursivelyProduct($onames)($rhs)"
+            Some(named)
+          case None => // It's not clear how this could happen but we don't want to crash
+            None
+        }
+      } else {
+        None
+      }
+    }
+
     // Method called by the compiler to modify source tree
     override def transform(tree: Tree): Tree = tree match {
       // Check if a subtree is a candidate
       case dd @ ValDef(mods, name, tpt, rhs) if okVal(dd) =>
-        val tpe = inferType(tpt)
-        val isData = shouldMatchData(tpe)
-        val isNamedComp = isData || shouldMatchNamedComp(tpe)
-        val isPrefixed = isNamedComp || shouldMatchChiselPrefixed(tpe)
-
-        // If a Data and in a Bundle, just get the name but not a prefix
-        if (isData && inBundle(dd)) {
-          val str = stringFromTermName(name)
-          val newRHS = transform(rhs) // chisel3.internal.plugin.autoNameRecursively
-          val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
-          treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
-        }
-        // If a Data or a Memory, get the name and a prefix
-        else if (isData || isPrefixed) {
-          val str = stringFromTermName(name)
-          // Starting with '_' signifies a temporary, we ignore it for prefixing because we don't
-          // want double "__" in names when the user is just specifying a temporary
-          val prefix = if (str.head == '_') str.tail else str
-          val newRHS = transform(rhs)
-          val prefixed = q"chisel3.experimental.prefix.apply[$tpt](name=$prefix)(f=$newRHS)"
-
-          val named =
-            if (isNamedComp) {
-              // Only name named components (not things that are merely prefixed)
-              q"chisel3.internal.plugin.autoNameRecursively($str)($prefixed)"
-            } else {
-              prefixed
-            }
-
-          treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
-        }
-        // If an instance, just get a name but no prefix
-        else if (shouldMatchModule(tpe)) {
-          val str = stringFromTermName(name)
-          val newRHS = transform(rhs)
-          val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
-          treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
-        } else if (shouldMatchInstance(tpe)) {
-          val str = stringFromTermName(name)
-          val newRHS = transform(rhs)
-          val named = q"chisel3.internal.plugin.autoNameRecursively($str)($newRHS)"
-          treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
-        } else {
-          // Otherwise, continue
-          super.transform(tree)
+        transformDef(dd.symbol, name, tpt, rhs) match {
+          case Some(named) => treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
+          case None => super.transform(tree)
         }
       case dd @ ValDef(mods, name, tpt, rhs @ Match(_, _)) if okUnapply(dd) =>
-        val tpe = inferType(tpt)
-        val fieldsOfInterest: List[Boolean] = tpe.typeArgs.map(shouldMatchData)
-        // Only transform if at least one field is of interest
-        if (fieldsOfInterest.reduce(_ || _)) {
-          findUnapplyNames(rhs) match {
-            case Some(names) =>
-              val onames: List[Option[String]] =
-                fieldsOfInterest.zip(names).map { case (ok, name) => if (ok) Some(name) else None }
-              val named = q"chisel3.internal.plugin.autoNameRecursivelyProduct($onames)($rhs)"
-              treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
-            case None => // It's not clear how this could happen but we don't want to crash
-              super.transform(tree)
-          }
-        } else {
-          super.transform(tree)
+        transformDefMatch(name, tpt, rhs) match {
+          case Some(named) => treeCopy.ValDef(dd, mods, name, tpt, localTyper.typed(named))
+          case None => super.transform(tree)
         }
       // Otherwise, continue
       case _ => super.transform(tree)
