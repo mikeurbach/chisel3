@@ -152,6 +152,7 @@ package object chisel3 {
   object UInt extends UIntFactory
   object SInt extends SIntFactory
   object Bool extends BoolFactory
+  object IntegerProp extends IntegerPropFactory
 
   /** Public API to access Node/Signal names.
     * currently, the node's name, the full path name, and references to its parent Module and component.

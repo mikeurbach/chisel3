@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.experimental.{Analog, BaseModule, SourceInfo}
 import chisel3.internal.containsProbe
 import chisel3.internal.Builder.pushCommand
-import chisel3.internal.firrtl.{Connect, Converter, DefInvalid}
+import chisel3.internal.firrtl.{Connect, Converter, DefInvalid, PropAssign}
 import chisel3.experimental.dataview.{isView, reify, reifyToAggregate}
 
 import scala.language.experimental.macros
@@ -130,6 +130,8 @@ private[chisel3] object MonoConnect {
       case (sink_e: EnumType, source_e: EnumType) if sink_e.typeEquivalent(source_e) =>
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
       case (sink_e: UnsafeEnum, source_e: UInt) =>
+        elemConnect(sourceInfo, sink_e, source_e, context_mod)
+      case (sink_e: Property, source_e: Property) =>
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
 
       // Handle Vec case
@@ -377,7 +379,12 @@ private[chisel3] object MonoConnect {
     //  otherwise, issue a Connect.
     source.topBinding match {
       case b: DontCareBinding => pushCommand(DefInvalid(sourceInfo, sink.lref))
-      case _ => pushCommand(Connect(sourceInfo, sink.lref, source.ref))
+      case _ => {
+        (sink, sink) match {
+          case (_: Property, _: Property) => pushCommand(PropAssign(sourceInfo, sink.lref, source.ref))
+          case (_, _) => pushCommand(Connect(sourceInfo, sink.lref, source.ref))
+        }
+      }
     }
   }
 

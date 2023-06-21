@@ -98,6 +98,8 @@ private[chisel3] object Converter {
       fir.RWProbeExpr(convert(probe, ctx, info))
     case e @ ProbeRead(probe) =>
       fir.ProbeRead(convert(probe, ctx, info))
+    case IntegerPropLit(n) =>
+      fir.IntegerPropLiteral(n)
     case other =>
       throw new InternalErrorException(s"Unexpected type in convert $other")
   }
@@ -160,6 +162,8 @@ private[chisel3] object Converter {
       Some(fir.Connect(convert(info), convert(loc, ctx, info), convert(exp, ctx, info)))
     case Attach(info, locs) =>
       Some(fir.Attach(convert(info), locs.map(l => convert(l, ctx, info))))
+    case PropAssign(info, loc, exp) =>
+      Some(fir.PropAssign(convert(info), convert(loc, ctx, info), convert(exp, ctx, info)))
     case DefInvalid(info, arg) =>
       Some(fir.IsInvalid(convert(info), convert(arg, ctx, info)))
     case e @ DefInstance(info, id, _) =>
@@ -351,6 +355,7 @@ private[chisel3] object Converter {
     case d: UInt       => fir.UIntType(convert(d.width))
     case d: SInt       => fir.SIntType(convert(d.width))
     case d: Analog => fir.AnalogType(convert(d.width))
+    case d: IntegerProp => fir.IntegerPropType
     case d: Vec[_] =>
       val childClearDir = clearDir ||
         d.specifiedDirection == SpecifiedDirection.Input || d.specifiedDirection == SpecifiedDirection.Output

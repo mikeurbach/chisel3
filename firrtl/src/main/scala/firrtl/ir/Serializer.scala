@@ -101,6 +101,7 @@ object Serializer {
     case ProbeExpr(expr, _)   => b ++= "probe("; s(expr); b += ')'
     case RWProbeExpr(expr, _) => b ++= "rwprobe("; s(expr); b += ')'
     case ProbeRead(expr, _)   => b ++= "read("; s(expr); b += ')'
+    case IntegerPropLiteral(value) => b ++= "BigInt("; b ++= value.toString(10); b += ')'
     case other                => b ++= other.serialize // Handle user-defined nodes
   }
 
@@ -229,6 +230,7 @@ object Serializer {
   private def s(node: Statement)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case DefNode(info, name, value) => b ++= "node "; b ++= name; b ++= " = "; s(value); s(info)
     case Connect(info, loc, expr)   => s(loc); b ++= " <= "; s(expr); s(info)
+    case PropAssign(info, loc, expr)   => b ++= "propassign "; s(loc); b ++= ", "; s(expr); s(info)
     case c: Conditionally => b ++= sIt(c).mkString
     case EmptyStmt => b ++= "skip"
     case bb: Block => b ++= sIt(bb).mkString
@@ -338,6 +340,7 @@ object Serializer {
     case ResetType             => b ++= "Reset"
     case AsyncResetType        => b ++= "AsyncReset"
     case AnalogType(width)     => b ++= "Analog"; s(width)
+    case IntegerPropType       => b ++= "BigInt"
     case UnknownType           => b += '?'
     case other                 => b ++= other.serialize // Handle user-defined nodes
   }

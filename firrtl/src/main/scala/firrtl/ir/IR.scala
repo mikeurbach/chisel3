@@ -219,6 +219,12 @@ object SIntLiteral {
   def minWidth(value: BigInt): Width = IntWidth(value.bitLength + 1)
   def apply(value:    BigInt): SIntLiteral = new SIntLiteral(value, minWidth(value))
 }
+
+case class IntegerPropLiteral(value: BigInt) extends Literal with UseSerializer {
+  def tpe = IntegerPropType
+  val width = UnknownWidth
+}
+
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type)
     extends Expression
     with UseSerializer
@@ -292,6 +298,7 @@ case class Block(stmts: Seq[Statement]) extends Statement with UseSerializer
 case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo with UseSerializer
 case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo with UseSerializer
 case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with HasInfo with UseSerializer
+case class PropAssign(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo with UseSerializer
 
 @data class Stop(info: Info, ret: Int, clk: Expression, en: Expression, @since("FIRRTL 1.5") name: String = "")
     extends Statement
@@ -489,6 +496,8 @@ case object AsyncResetType extends GroundType with UseSerializer {
 }
 case class AnalogType(width: Width) extends GroundType with UseSerializer
 case object UnknownType extends Type with UseSerializer
+
+case object IntegerPropType extends Type with UseSerializer
 
 /** [[Port]] Direction */
 sealed abstract class Direction extends FirrtlNode

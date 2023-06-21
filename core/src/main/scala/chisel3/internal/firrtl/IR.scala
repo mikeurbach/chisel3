@@ -165,6 +165,13 @@ case class SLit(n: BigInt, w: Width) extends LitArg(n, w) {
 }
 
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class IntegerPropLit(n: BigInt) extends LitArg(n, Width()) {
+  def name: String = s"IntegerProp($n)"
+  def minWidth: Int = 0
+  def cloneWithWidth(newWidth: Width): this.type = IntegerPropLit(n).asInstanceOf[this.type]
+}
+
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class Ref(name: String) extends Arg
 
 /** Arg for ports of Modules
@@ -335,6 +342,8 @@ case class Connect(sourceInfo: SourceInfo, loc: Node, exp: Arg) extends Command
 case class Attach(sourceInfo: SourceInfo, locs: Seq[Node]) extends Command
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class ConnectInit(sourceInfo: SourceInfo, loc: Node, exp: Arg) extends Command
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class PropAssign(sourceInfo: SourceInfo, loc: Node, exp: Arg) extends Command
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class Stop(id: stop.Stop, sourceInfo: SourceInfo, clock: Arg, ret: Int) extends Definition
 // Note this is just deprecated which will cause deprecation warnings, use @nowarn
