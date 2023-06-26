@@ -11,7 +11,7 @@ import chisel3.experimental.SourceInfo
   * non-hardware types, so they have no width, and cannot be connected to
   * hardware types.
   */
-private[chisel3] sealed abstract trait Property extends Element {
+sealed abstract trait Property extends Element {
   private[chisel3] override def connectFromBits(
     that: Bits
   )(implicit sourceInfo: SourceInfo): Unit = {
