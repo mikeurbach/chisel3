@@ -11,21 +11,21 @@ import chisel3.experimental.SourceInfo
   * non-hardware types, so they have no width, and cannot be connected to
   * hardware types.
   */
-sealed abstract trait Property extends Element {
+sealed abstract trait PropertyType extends Element {
   private[chisel3] override def connectFromBits(
     that: Bits
   )(implicit sourceInfo: SourceInfo): Unit = {
-    throwException("Integer cannot be connected from Bits")
+    throwException("Property cannot be connected from Bits")
   }
 
   override def do_asUInt(implicit sourceInfo: SourceInfo): UInt = {
-    throwException("Integer cannot be converted to UInt")
+    throwException("Property cannot be converted to UInt")
   }
 
   private[chisel3] override def width: Width = Width()
 }
 
-private[chisel3] sealed class IntegerProp extends Property {
+private[chisel3] sealed class IntegerProp extends PropertyType {
   override def cloneType: this.type = new IntegerProp().asInstanceOf[this.type]
   override def toPrintable: Printable = PString("IntegerProp")
 }

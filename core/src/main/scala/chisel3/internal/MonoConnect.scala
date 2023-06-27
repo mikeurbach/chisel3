@@ -131,7 +131,7 @@ private[chisel3] object MonoConnect {
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
       case (sink_e: UnsafeEnum, source_e: UInt) =>
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
-      case (sink_e: Property, source_e: Property) =>
+      case (sink_e: PropertyType, source_e: PropertyType) =>
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
 
       // Handle Vec case
@@ -380,8 +380,8 @@ private[chisel3] object MonoConnect {
     source.topBinding match {
       case b: DontCareBinding => pushCommand(DefInvalid(sourceInfo, sink.lref))
       case _ => {
-        (sink, sink) match {
-          case (_: Property, _: Property) => pushCommand(PropAssign(sourceInfo, sink.lref, source.ref))
+        (sink, source) match {
+          case (_: PropertyType, _: PropertyType) => pushCommand(PropAssign(sourceInfo, sink.lref, source.ref))
           case (_, _) => pushCommand(Connect(sourceInfo, sink.lref, source.ref))
         }
       }
