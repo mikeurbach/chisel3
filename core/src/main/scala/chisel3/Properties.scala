@@ -2,7 +2,7 @@
 
 package chisel3
 
-import chisel3.internal.throwException
+import chisel3.internal.{throwException, ElementLitBinding}
 import chisel3.internal.firrtl.Width
 import chisel3.experimental.SourceInfo
 
@@ -23,6 +23,19 @@ sealed abstract trait PropertyType extends Element {
   }
 
   private[chisel3] override def width: Width = Width()
+
+  override def isLit: Boolean = topBindingOpt match {
+    case Some(ElementLitBinding(_)) => true
+    case _                          => false
+  }
+
+  override def litOption: Option[BigInt] = {
+    throwException("Property literals cannot be accessed")
+  }
+
+  override def litValue: BigInt = {
+    throwException("Property literals cannot be accessed")
+  }
 }
 
 private[chisel3] sealed class IntegerProp extends PropertyType {
