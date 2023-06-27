@@ -12,6 +12,7 @@ import chisel3.internal.Builder._
 import chisel3.internal.firrtl._
 import _root_.firrtl.annotations.{IsModule, ModuleTarget}
 import scala.collection.immutable.VectorBuilder
+import scala.collection.mutable.ArrayBuffer
 
 /** Abstract base class for Modules that contain Chisel RTL.
   * This abstract base class is a user-defined module which does not include implicit clock and reset and supports
@@ -36,6 +37,11 @@ abstract class RawModule extends BaseModule {
     _component.get.asInstanceOf[DefModule].commands
   }
 
+  private val _atModuleBodyEnd = new ArrayBuffer[() => Unit]
+  protected def atModuleBodyEnd(gen: => Unit): Unit = {
+    _atModuleBodyEnd += { () => gen }
+  }
+
   //
   // Other Internal Functions
   //
@@ -54,6 +60,12 @@ abstract class RawModule extends BaseModule {
 
   private[chisel3] override def generateComponent(): Option[Component] = {
     require(!_closed, "Can't generate module more than once")
+
+    // Evaluate any atModuleBodyEnd generators.
+    _atModuleBodyEnd.foreach { gen =>
+      gen()
+    }
+
     _closed = true
 
     // Check to make sure that all ports can be named
