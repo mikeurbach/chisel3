@@ -126,7 +126,12 @@ abstract class RawModule extends BaseModule {
       case (true, false) if left.probeInfo.get.writable => ProbeDefine(si, left.lref, RWProbeExpr(Node(right)))
       case (true, false)                                => ProbeDefine(si, left.lref, ProbeExpr(Node(right)))
       case (false, true)                                => Connect(si, left.lref, ProbeRead(Node(right)))
-      case (false, false)                               => Connect(si, left.lref, Node(right))
+      case (false, false)                               => {
+        (left, right) match {
+          case (_: PropertyType, _: PropertyType) => PropAssign(si, left.lref, Node(right))
+          case (_, _) => Connect(si, left.lref, Node(right))
+        }
+      }
     }
     val secretCommands = if (_closed) {
       _component.get.asInstanceOf[DefModule].secretCommands

@@ -6,7 +6,7 @@ import chisel3._
 import chisel3.probe.{Probe, RWProbe}
 import chisel3.Data.ProbeInfo
 import chisel3.experimental.{annotate, requireIsHardware, skipPrefix, BaseModule, ChiselAnnotation, SourceInfo}
-import chisel3.internal.{Builder, BuilderContextCache, NamedComponent, Namespace}
+import chisel3.internal.{Builder, BuilderContextCache, NamedComponent, Namespace, PortBinding}
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
 import firrtl.passes.wiring.{SinkAnnotation, SourceAnnotation}
 import firrtl.annotations.{ComponentName, ModuleName}
@@ -221,9 +221,14 @@ object BoringUtils {
         case (sourceInfo, msg) => Builder.error(msg)(sourceInfo)
       }
     }
+    def isPort(d: Data): Boolean = d.topBindingOpt match {
+      case Some(PortBinding(_)) => true
+      case _ => false
+    }
     def drill(source: A, path: Seq[BaseModule], connectionLocation: Seq[BaseModule], up: Boolean): A = {
       path.zip(connectionLocation).foldLeft(source) {
         case (rhs, (module, conLoc)) if (module.isFullyClosed) => boringError(module); DontCare.asInstanceOf[A]
+        case (rhs, (module, conLoc)) if (up && module == path(0) && isPort(rhs)) => rhs
         case (rhs, (module, conLoc)) =>
           skipPrefix { // so `lcaSource` isn't in the name of the secret port
             if (!up && createProbe.nonEmpty && createProbe.get.writable) {
@@ -268,11 +273,15 @@ object BoringUtils {
     if (sink.probeInfo.nonEmpty) {
       sink
     } else {
-
-      /** Creating a wire to assign the result to.  We will return this. */
-      val bore = Wire(purePortTypeBase)
-      thisModule.asInstanceOf[RawModule].secretConnection(bore, sink)
-      bore
+      sink match {
+        case (_: PropertyType) => sink
+        case _ => {
+          /** Creating a wire to assign the result to.  We will return this. */
+          val bore = Wire(purePortTypeBase)
+          thisModule.asInstanceOf[RawModule].secretConnection(bore, sink)
+          bore
+        }
+      }
     }
   }
 
