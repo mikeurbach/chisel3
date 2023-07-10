@@ -79,8 +79,7 @@ object Module extends SourceInfoDoc {
     // Handle connections at enclosing scope
     // We use _component because Modules that don't generate them may still have one
     if (Builder.currentModule.isDefined && module._component.isDefined) {
-      val component = module._component.get
-      pushCommand(DefInstance(sourceInfo, module, component.ports))
+      pushCommand(module.getInstantiateCommand(sourceInfo))
       module.initializeInParent()
     }
     module
@@ -412,6 +411,10 @@ package experimental {
     /** Sets up this module in the parent context
       */
     private[chisel3] def initializeInParent(): Unit
+
+    private[chisel3] def getInstantiateCommand(sourceInfo: SourceInfo): Definition = {
+      DefInstance(sourceInfo, this, _component.get.ports)
+    }
 
     private[chisel3] def namePorts(): Unit = {
       for ((port, source) <- getModulePortsAndLocators) {

@@ -328,6 +328,9 @@ case class DefMemPort[T <: Data](
 @nowarn("msg=class Port") // delete when Port becomes private
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class DefInstance(sourceInfo: SourceInfo, id: BaseModule, ports: Seq[Port]) extends Definition
+@nowarn("msg=class Port") // delete when Port becomes private
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class DefObject(sourceInfo: SourceInfo, id: ClassDef, ports: Seq[Port]) extends Definition
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class WhenBegin(sourceInfo: SourceInfo, pred: Arg) extends Command
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
@@ -388,11 +391,17 @@ abstract class Component extends Arg {
   val secretPorts: mutable.ArrayBuffer[Port] = id.secretPorts
 }
 
-@nowarn("msg=class Port") // delete when Port becomes private
-@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
-case class DefModule(id: RawModule, name: String, ports: Seq[Port], commands: Seq[Command]) extends Component {
+trait HasSecretCommands {
   val secretCommands: mutable.ArrayBuffer[Command] = mutable.ArrayBuffer[Command]()
 }
+
+@nowarn("msg=class Port") // delete when Port becomes private
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class DefModule(id: RawModule, name: String, ports: Seq[Port], commands: Seq[Command]) extends Component with HasSecretCommands
+
+@nowarn("msg=class Port") // delete when Port becomes private
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class DefClass(id: ClassDef, name: String, ports: Seq[Port], commands: Seq[Command]) extends Component with HasSecretCommands
 
 @nowarn("msg=class Port") // delete when Port becomes private
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")

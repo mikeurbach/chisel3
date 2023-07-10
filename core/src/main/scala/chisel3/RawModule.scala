@@ -25,7 +25,7 @@ abstract class RawModule extends BaseModule {
   //
   // Perhaps this should be an ArrayBuffer (or ArrayBuilder), but DefModule is public and has Seq[Command]
   // so our best option is to share a single Seq datastructure with that
-  private val _commands = new VectorBuilder[Command]()
+  protected val _commands = new VectorBuilder[Command]()
   private[chisel3] def addCommand(c: Command): Unit = {
     require(!_closed, "Can't write to module after module close")
     _commands += c
@@ -45,7 +45,7 @@ abstract class RawModule extends BaseModule {
   //
   // Other Internal Functions
   //
-  private var _firrtlPorts: Option[Seq[firrtl.Port]] = None
+  protected var _firrtlPorts: Option[Seq[firrtl.Port]] = None
 
   private[chisel3] def checkPorts(): Unit = {
     for ((port, source) <- getModulePortsAndLocators) {
@@ -56,6 +56,10 @@ abstract class RawModule extends BaseModule {
         )(UnlocatableSourceInfo)
       }
     }
+  }
+
+  protected def getComponent(): Component with HasSecretCommands = {
+    DefModule(this, name, _firrtlPorts.get, _commands.result())
   }
 
   private[chisel3] override def generateComponent(): Option[Component] = {
@@ -111,7 +115,7 @@ abstract class RawModule extends BaseModule {
 
     // Generate IO invalidation commands to initialize outputs as unused,
     //  unless the client wants explicit control over their generation.
-    val component = DefModule(this, name, firrtlPorts, _commands.result())
+    val component = getComponent()
 
     // Secret connections can be staged if user bored into children modules
     component.secretCommands ++= stagedSecretCommands

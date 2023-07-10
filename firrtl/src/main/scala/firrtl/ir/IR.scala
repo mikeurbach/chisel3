@@ -259,6 +259,11 @@ case class DefInstance(info: Info, name: String, module: String, tpe: Type = Unk
     with IsDeclaration
     with UseSerializer
 
+case class DefObject(info: Info, name: String, cls: String, tpe: Type = UnknownType)
+    extends Statement
+    with IsDeclaration
+    with UseSerializer
+
 object ReadUnderWrite extends Enumeration {
   val Undefined = Value("undefined")
   val Old = Value("old")
@@ -578,6 +583,8 @@ case class IntModule(
   params:    Seq[Param])
     extends DefModule
     with UseSerializer
+
+case class DefClass(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule with UseSerializer
 
 case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends FirrtlNode with HasInfo with UseSerializer
 

@@ -3,8 +3,10 @@
 package chisel3
 
 import chisel3.internal.{throwException, ElementLitBinding}
-import chisel3.internal.firrtl.Width
+import chisel3.internal.firrtl.{Command, Definition, DefClass, DefObject, PropAssign, Width}
 import chisel3.experimental.SourceInfo
+
+import scala.reflect.runtime.universe.{TypeTag, typeOf, typeTag}
 
 /** Properties are like normal Elements in that they can be used in ports,
   * connected to, etc. However, they are used to describe a hierarchy of
@@ -41,4 +43,27 @@ sealed abstract trait PropertyType extends Element {
 private[chisel3] sealed class IntegerProp extends PropertyType {
   override def cloneType: this.type = new IntegerProp().asInstanceOf[this.type]
   override def toPrintable: Printable = PString("IntegerProp")
+}
+
+class ClassDef extends RawModule {
+  private[chisel3] override def addCommand(c: Command): Unit = c match {
+    case (_: DefObject) | (_: PropAssign) => super.addCommand(c)
+    case _ => throwException(s"only objects and property assignment allowed, found $c")
+  }
+
+  override def IO[T <: Data](iodef: => T)(implicit sourceInfo: SourceInfo): T = {
+    val data = iodef // evaluate once (passed by name)
+    data match {
+      case (_: PropertyType) => super.IO(iodef)(sourceInfo)
+      case _ => throwException(s"only property ports allowed, found ${data}")
+    }
+  }
+
+  override def getComponent(): DefClass = {
+    DefClass(this, name, _firrtlPorts.get, _commands.result())
+  }
+
+  private[chisel3] override def getInstantiateCommand(sourceInfo: SourceInfo): Definition = {
+    DefObject(sourceInfo, this, _component.get.ports)
+  }
 }
