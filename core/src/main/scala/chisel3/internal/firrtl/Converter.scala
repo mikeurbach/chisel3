@@ -100,8 +100,14 @@ private[chisel3] object Converter {
       fir.ProbeRead(convert(probe, ctx, info))
     case IntegerPropLit(n) =>
       fir.IntegerPropLiteral(n)
+    case PropLit(lit) =>
+      getPropLit(lit)
     case other =>
       throw new InternalErrorException(s"Unexpected type in convert $other")
+  }
+
+  def getPropLit(lit: BigInt): fir.Literal = {
+    fir.IntegerPropLiteral(lit)
   }
 
   /** Convert Commands that map 1:1 to Statements */
@@ -357,6 +363,7 @@ private[chisel3] object Converter {
     case d: UInt       => fir.UIntType(convert(d.width))
     case d: SInt       => fir.SIntType(convert(d.width))
     case d: Analog => fir.AnalogType(convert(d.width))
+    case d: Prop[_] => getPropType(d)
     case d: IntegerProp => fir.IntegerPropType
     case d: Vec[_] =>
       val childClearDir = clearDir ||
@@ -380,6 +387,10 @@ private[chisel3] object Converter {
       else
         extractType(d._elements.head._2, childClearDir, info, checkProbe, true)
     }
+  }
+
+  def getPropType(d: Prop[BigInt]): fir.Type = {
+    fir.IntegerPropType
   }
 
   def convert(name: String, param: Param): fir.Param = param match {

@@ -275,6 +275,7 @@ object BoringUtils {
     } else {
       sink match {
         case (_: PropertyType) => sink
+        case (_: Prop[_]) => sink
         case _ => {
           /** Creating a wire to assign the result to.  We will return this. */
           val bore = Wire(purePortTypeBase)

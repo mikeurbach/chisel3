@@ -133,6 +133,7 @@ abstract class RawModule extends BaseModule {
       case (false, false)                               => {
         (left, right) match {
           case (_: PropertyType, _: PropertyType) => PropAssign(si, left.lref, Node(right))
+          case (_: Prop[_], _: Prop[_]) => PropAssign(si, left.lref, Node(right))
           case (_, _) => Connect(si, left.lref, Node(right))
         }
       }

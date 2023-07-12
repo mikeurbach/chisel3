@@ -3,7 +3,7 @@
 package chisel3
 
 import chisel3.internal.{throwException, ElementLitBinding}
-import chisel3.internal.firrtl.{Command, Definition, DefClass, DefObject, PropAssign, Width}
+import chisel3.internal.firrtl.{Command, Definition, DefClass, DefObject, PropLit, PropAssign, Width}
 import chisel3.experimental.SourceInfo
 
 import scala.reflect.runtime.universe.{TypeTag, typeOf, typeTag}
@@ -43,6 +43,49 @@ sealed abstract trait PropertyType extends Element {
 private[chisel3] sealed class IntegerProp extends PropertyType {
   override def cloneType: this.type = new IntegerProp().asInstanceOf[this.type]
   override def toPrintable: Printable = PString("IntegerProp")
+}
+
+class Prop[+T <: BigInt] extends Element {
+  private[chisel3] override def connectFromBits(
+    that: Bits
+  )(implicit sourceInfo: SourceInfo): Unit = {
+    throwException("Property cannot be connected from Bits")
+  }
+
+  override def do_asUInt(implicit sourceInfo: SourceInfo): UInt = {
+    throwException("Property cannot be converted to UInt")
+  }
+
+  private[chisel3] override def width: Width = Width()
+
+  override def cloneType: this.type = new Prop[T]().asInstanceOf[this.type]
+
+  override def toPrintable: Printable = PString("Prop")
+
+  override def isLit: Boolean = topBindingOpt match {
+    case Some(ElementLitBinding(_)) => true
+    case _                          => false
+  }
+
+  override def litOption: Option[BigInt] = {
+    throwException("Property literals cannot be accessed")
+  }
+
+  override def litValue: BigInt = {
+    throwException("Property literals cannot be accessed")
+  }
+}
+
+object Prop {
+  def apply[T <: BigInt](): Prop[T] = {
+    new Prop[T]
+  }
+
+  def apply[T <: BigInt](lit: T): Prop[T] = {
+    val literal = PropLit[T](lit)
+    val result = new Prop[T]
+    literal.bindLitArg(result)
+  }
 }
 
 class ClassDef extends RawModule {

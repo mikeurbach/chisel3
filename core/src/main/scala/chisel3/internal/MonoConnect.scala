@@ -133,6 +133,8 @@ private[chisel3] object MonoConnect {
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
       case (sink_e: PropertyType, source_e: PropertyType) =>
         elemConnect(sourceInfo, sink_e, source_e, context_mod)
+      case (sink_e: Prop[_], source_e: Prop[_]) =>
+        elemConnect(sourceInfo, sink_e, source_e, context_mod)
 
       // Handle Vec case
       case (sink_v: Vec[Data @unchecked], source_v: Vec[Data @unchecked]) =>
@@ -382,6 +384,7 @@ private[chisel3] object MonoConnect {
       case _ => {
         (sink, source) match {
           case (_: PropertyType, _: PropertyType) => pushCommand(PropAssign(sourceInfo, sink.lref, source.ref))
+          case (_: Prop[_], _: Prop[_]) => pushCommand(PropAssign(sourceInfo, sink.lref, source.ref))
           case (_, _) => pushCommand(Connect(sourceInfo, sink.lref, source.ref))
         }
       }

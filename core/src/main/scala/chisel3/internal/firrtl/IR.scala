@@ -172,6 +172,13 @@ case class IntegerPropLit(n: BigInt) extends LitArg(n, Width()) {
 }
 
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
+case class PropLit[T <: BigInt](lit: T) extends LitArg(lit, Width()) {
+  def name: String = s"PropLit($lit)"
+  def minWidth: Int = 0
+  def cloneWithWidth(newWidth: Width): this.type = PropLit[T](lit).asInstanceOf[this.type]
+}
+
+@deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
 case class Ref(name: String) extends Arg
 
 /** Arg for ports of Modules
