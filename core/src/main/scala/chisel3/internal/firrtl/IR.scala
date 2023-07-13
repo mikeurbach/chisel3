@@ -172,10 +172,17 @@ case class IntegerPropLit(n: BigInt) extends LitArg(n, Width()) {
 }
 
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")
-case class PropLit[T <: BigInt](lit: T) extends LitArg(lit, Width()) {
+case class PropLit[T : PropertyBase](lit: T) extends Arg {
   def name: String = s"PropLit($lit)"
   def minWidth: Int = 0
   def cloneWithWidth(newWidth: Width): this.type = PropLit[T](lit).asInstanceOf[this.type]
+
+  // Expose a bindLitArg API for PropLit, similar to LitArg.
+  def bindLitArg(elem: Prop[T]): Prop[T] = {
+    elem.bind(PropertyLitBinding(this))
+    elem.setRef(this)
+    elem
+  }
 }
 
 @deprecated(deprecatedPublicAPIMsg, "Chisel 3.6")

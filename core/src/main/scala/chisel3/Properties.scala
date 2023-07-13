@@ -45,7 +45,17 @@ private[chisel3] sealed class IntegerProp extends PropertyType {
   override def toPrintable: Printable = PString("IntegerProp")
 }
 
-class Prop[+T <: BigInt] extends Element {
+class PropertyBase[T]
+
+object PropertyBaseInstances {
+  implicit val BigIntPropertyBaseInstance = new PropertyBase[BigInt]
+}
+
+import PropertyBaseInstances._
+
+class Prop[T : PropertyBase : TypeTag] extends Element {
+  val tpe = typeOf[T]
+
   private[chisel3] override def connectFromBits(
     that: Bits
   )(implicit sourceInfo: SourceInfo): Unit = {
@@ -61,27 +71,14 @@ class Prop[+T <: BigInt] extends Element {
   override def cloneType: this.type = new Prop[T]().asInstanceOf[this.type]
 
   override def toPrintable: Printable = PString("Prop")
-
-  override def isLit: Boolean = topBindingOpt match {
-    case Some(ElementLitBinding(_)) => true
-    case _                          => false
-  }
-
-  override def litOption: Option[BigInt] = {
-    throwException("Property literals cannot be accessed")
-  }
-
-  override def litValue: BigInt = {
-    throwException("Property literals cannot be accessed")
-  }
 }
 
 object Prop {
-  def apply[T <: BigInt](): Prop[T] = {
+  def apply[T : PropertyBase : TypeTag](): Prop[T] = {
     new Prop[T]
   }
 
-  def apply[T <: BigInt](lit: T): Prop[T] = {
+  def apply[T : PropertyBase : TypeTag](lit: T): Prop[T] = {
     val literal = PropLit[T](lit)
     val result = new Prop[T]
     literal.bindLitArg(result)
