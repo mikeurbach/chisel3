@@ -318,47 +318,47 @@ private[chisel3] object Converter {
     case KnownWidth(value) => fir.IntWidth(value)
   }
 
-  private def firrtlUserDirOf(d: Data): SpecifiedDirection = d match {
-    case d: Vec[_] =>
-      SpecifiedDirection.fromParent(d.specifiedDirection, firrtlUserDirOf(d.sample_element))
-    case d: Record if d._isOpaqueType =>
-      SpecifiedDirection.fromParent(d.specifiedDirection, firrtlUserDirOf(d.elementsIterator.next()))
-    case d => d.specifiedDirection
+  private def firrtlUserDirOf(b: IsBindable): SpecifiedDirection = b match {
+    case b: Vec[_] =>
+      SpecifiedDirection.fromParent(b.specifiedDirection, firrtlUserDirOf(b.sample_element))
+    case b: Record if b._isOpaqueType =>
+      SpecifiedDirection.fromParent(b.specifiedDirection, firrtlUserDirOf(b.elementsIterator.next()))
+    case b => b.specifiedDirection
   }
 
-  def extractType(data: Data, info: SourceInfo): fir.Type = extractType(data, false, info, true, true)
+  def extractType(isBindable: IsBindable, info: SourceInfo): fir.Type = extractType(isBindable, false, info, true, true)
 
   def extractType(
-    data:       Data,
+    isBindable: IsBindable,
     clearDir:   Boolean,
     info:       SourceInfo,
     checkProbe: Boolean,
     checkConst: Boolean
-  ): fir.Type = data match {
+  ): fir.Type = isBindable match {
     // extract underlying type for probe
-    case d if (checkProbe && d.probeInfo.nonEmpty) =>
-      if (d.probeInfo.get.writable) {
-        fir.RWProbeType(extractType(d, clearDir, info, false, checkConst))
+    case b: Data if (checkProbe && b.probeInfo.nonEmpty) =>
+      if (b.probeInfo.get.writable) {
+        fir.RWProbeType(extractType(b, clearDir, info, false, checkConst))
       } else {
-        fir.ProbeType(extractType(d, clearDir, info, false, checkConst))
+        fir.ProbeType(extractType(b, clearDir, info, false, checkConst))
       }
     // extract underlying type for const
-    case d if (checkConst && d.isConst) => fir.ConstType(extractType(d, clearDir, info, checkProbe, false))
-    case _: Clock      => fir.ClockType
-    case _: AsyncReset => fir.AsyncResetType
-    case _: ResetType  => fir.ResetType
-    case d: EnumType   => fir.UIntType(convert(d.width))
-    case d: UInt       => fir.UIntType(convert(d.width))
-    case d: SInt       => fir.SIntType(convert(d.width))
-    case d: Analog => fir.AnalogType(convert(d.width))
-    case d: Vec[_] =>
+    case b: Data if (checkConst && b.isConst) => fir.ConstType(extractType(b, clearDir, info, checkProbe, false))
+    case _: Clock                             => fir.ClockType
+    case _: AsyncReset                        => fir.AsyncResetType
+    case _: ResetType                         => fir.ResetType
+    case b: EnumType                          => fir.UIntType(convert(b.width))
+    case b: UInt                              => fir.UIntType(convert(b.width))
+    case b: SInt                              => fir.SIntType(convert(b.width))
+    case b: Analog => fir.AnalogType(convert(b.width))
+    case b: Vec[_] =>
       val childClearDir = clearDir ||
-        d.specifiedDirection == SpecifiedDirection.Input || d.specifiedDirection == SpecifiedDirection.Output
+        b.specifiedDirection == SpecifiedDirection.Input || b.specifiedDirection == SpecifiedDirection.Output
       // if Vector is a probe, don't emit Probe<...> on its elements
-      fir.VectorType(extractType(d.sample_element, childClearDir, info, checkProbe, true), d.length)
-    case d: Record => {
+      fir.VectorType(extractType(b.sample_element, childClearDir, info, checkProbe, true), b.length)
+    case b: Record => {
       val childClearDir = clearDir ||
-        d.specifiedDirection == SpecifiedDirection.Input || d.specifiedDirection == SpecifiedDirection.Output
+        b.specifiedDirection == SpecifiedDirection.Input || b.specifiedDirection == SpecifiedDirection.Output
       // if Record is a probe, don't emit Probe<...> on its elements
       def eltField(elt: Data): fir.Field = (childClearDir, firrtlUserDirOf(elt)) match {
         case (true, _) =>
@@ -368,10 +368,10 @@ private[chisel3] object Converter {
         case (false, SpecifiedDirection.Flip | SpecifiedDirection.Input) =>
           fir.Field(getRef(elt, info).name, fir.Flip, extractType(elt, false, info, checkProbe, true))
       }
-      if (!d._isOpaqueType)
-        fir.BundleType(d._elements.toIndexedSeq.reverse.map { case (_, e) => eltField(e) })
+      if (!b._isOpaqueType)
+        fir.BundleType(b._elements.toIndexedSeq.reverse.map { case (_, e) => eltField(e) })
       else
-        extractType(d._elements.head._2, childClearDir, info, checkProbe, true)
+        extractType(b._elements.head._2, childClearDir, info, checkProbe, true)
     }
   }
 
