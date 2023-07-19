@@ -372,6 +372,89 @@ trait BaseType extends HasId with NamedComponent {
     */
   private[chisel3] def cloneTypeFull: this.type
 
+  // Internal API: returns a ref that can be assigned to, if consistent with the binding
+  private[chisel3] def lref: Node = {
+    requireIsHardware(this)
+    requireVisible()
+    topBindingOpt match {
+      case Some(binding: ReadOnlyBinding) =>
+        throwException(s"internal error: attempted to generate LHS ref to ReadOnlyBinding $binding")
+      case Some(ViewBinding(target)) => reify(target).lref
+      case Some(binding: TopBinding) => Node(this)
+      case opt => throwException(s"internal error: unknown binding $opt in generating LHS ref")
+    }
+  }
+
+  // Internal API: returns a ref, if bound
+  private[chisel3] final def ref: Arg = {
+    def materializeWire(makeConst: Boolean = false): Arg = {
+      if (!Builder.currentModule.isDefined) throwException(s"internal error: cannot materialize ref for $this")
+      implicit val sourceInfo = UnlocatableSourceInfo
+      this match {
+        case (data: Data) => {
+          if (makeConst) {
+            WireDefault(Const(chiselTypeOf(data)), data).ref
+          } else {
+            WireDefault(data).ref
+          }
+        }
+        case _ => throwException(s"internal error: cannot materialize ref for $this")
+      }
+    }
+    requireIsHardware(this)
+    topBindingOpt match {
+      // DataView
+      case Some(ViewBinding(target)) => reify(target).ref
+      case Some(AggregateViewBinding(viewMap)) =>
+        viewMap.get(this.asInstanceOf[Data]) match { // AggregateViewBinding should only be possible on Data.
+          case None => materializeWire() // FIXME FIRRTL doesn't have Aggregate Init expressions
+          // This should not be possible because Element does the lookup in .topBindingOpt
+          case x: Some[_] => throwException(s"Internal Error: In .ref for $this got '$topBindingOpt' and '$x'")
+        }
+      // Literals
+      case Some(ElementLitBinding(litArg)) => litArg
+      case Some(BundleLitBinding(litMap)) =>
+        litMap.get(this.asInstanceOf[Data]) match { // BundleLitBinding should only be possible on Data.
+          case Some(litArg) => litArg
+          // TODO make a Const once const is supported in firtool
+          case _ => materializeWire() // FIXME FIRRTL doesn't have Bundle literal expressions
+        }
+      case Some(VecLitBinding(litMap)) =>
+        litMap.get(this.asInstanceOf[Data]) match { // VecLitBinding should only be possible on Data.
+          case Some(litArg) => litArg
+          // TODO make a Const once const is supported in firtool
+          case _ => materializeWire() // FIXME FIRRTL doesn't have Vec literal expressions
+        }
+      case Some(DontCareBinding()) =>
+        materializeWire() // FIXME FIRRTL doesn't have a DontCare expression so materialize a Wire
+      // Non-literals
+      case Some(binding: TopBinding) =>
+        if (Builder.currentModule.isDefined) {
+          // This is allowed (among other cases) for evaluating args of Printf / Assert / Printable, which are
+          // partially resolved *after* elaboration completes. If this is resolved, the check should be unconditional.
+          requireVisible()
+        }
+        Node(this)
+      case opt => throwException(s"internal error: unknown binding $opt in generating LHS ref")
+    }
+  }
+
+  private[chisel3] def requireVisible(): Unit = {
+    val mod = topBindingOpt.flatMap(_.location)
+    topBindingOpt match {
+      case Some(tb: TopBinding) if (mod == Builder.currentModule) =>
+      case Some(pb: PortBinding)
+          if (mod.flatMap(Builder.retrieveParent(_, Builder.currentModule.get)) == Builder.currentModule) =>
+      case Some(pb: SecretPortBinding) => // Ignore secret to not require visibility
+      case Some(_: UnconstrainedBinding) =>
+      case _ =>
+        throwException(s"operand '$this' is not visible from the current module ${Builder.currentModule.get.name}")
+    }
+    if (!MonoConnect.checkWhenVisibility(this)) {
+      throwException(s"operand has escaped the scope of the when in which it was constructed")
+    }
+  }
+
   /** Adds this `BaseType` to its parents _ids if it should be added */
   private[chisel3] def maybeAddToParentIds(target: Binding): Unit = {
     // ConstrainedBinding means the thing actually corresponds to a Module, no need to add to _ids otherwise
@@ -381,6 +464,10 @@ trait BaseType extends HasId with NamedComponent {
       case _ =>
     }
   }
+
+  private[chisel3] def earlyName: String = Arg.earlyLocalName(this)
+
+  private[chisel3] def parentNameOpt: Option[String] = this._parent.map(_.name)
 }
 
 /** This forms the root of the type system for wire data types. The data value
@@ -465,10 +552,6 @@ abstract class Data extends BaseType with SourceInfoDoc {
       case VecLitBinding(litMap)     => "(unhandled vec literal)"
       case _                         => ""
     }
-
-  private[chisel3] def earlyName: String = Arg.earlyLocalName(this)
-
-  private[chisel3] def parentNameOpt: Option[String] = this._parent.map(_.name)
 
   // Return ALL elements at root of this type.
   // Contasts with flatten, which returns just Bits
@@ -577,84 +660,6 @@ abstract class Data extends BaseType with SourceInfoDoc {
     val leftType = if (this.hasBinding) this.cloneType else this
     val rightType = if (that.hasBinding) that.cloneType else that
     rec(leftType, rightType)
-  }
-
-  private[chisel3] def requireVisible(): Unit = {
-    val mod = topBindingOpt.flatMap(_.location)
-    topBindingOpt match {
-      case Some(tb: TopBinding) if (mod == Builder.currentModule) =>
-      case Some(pb: PortBinding)
-          if (mod.flatMap(Builder.retrieveParent(_, Builder.currentModule.get)) == Builder.currentModule) =>
-      case Some(pb: SecretPortBinding) => // Ignore secret to not require visibility
-      case Some(_: UnconstrainedBinding) =>
-      case _ =>
-        throwException(s"operand '$this' is not visible from the current module ${Builder.currentModule.get.name}")
-    }
-    if (!MonoConnect.checkWhenVisibility(this)) {
-      throwException(s"operand has escaped the scope of the when in which it was constructed")
-    }
-  }
-
-  // Internal API: returns a ref that can be assigned to, if consistent with the binding
-  private[chisel3] def lref: Node = {
-    requireIsHardware(this)
-    requireVisible()
-    topBindingOpt match {
-      case Some(binding: ReadOnlyBinding) =>
-        throwException(s"internal error: attempted to generate LHS ref to ReadOnlyBinding $binding")
-      case Some(ViewBinding(target)) => reify(target).lref
-      case Some(binding: TopBinding) => Node(this)
-      case opt => throwException(s"internal error: unknown binding $opt in generating LHS ref")
-    }
-  }
-
-  // Internal API: returns a ref, if bound
-  private[chisel3] final def ref: Arg = {
-    def materializeWire(makeConst: Boolean = false): Arg = {
-      if (!Builder.currentModule.isDefined) throwException(s"internal error: cannot materialize ref for $this")
-      implicit val sourceInfo = UnlocatableSourceInfo
-      if (makeConst) {
-        WireDefault(Const(chiselTypeOf(this)), this).ref
-      } else {
-        WireDefault(this).ref
-      }
-    }
-    requireIsHardware(this)
-    topBindingOpt match {
-      // DataView
-      case Some(ViewBinding(target)) => reify(target).ref
-      case Some(AggregateViewBinding(viewMap)) =>
-        viewMap.get(this) match {
-          case None => materializeWire() // FIXME FIRRTL doesn't have Aggregate Init expressions
-          // This should not be possible because Element does the lookup in .topBindingOpt
-          case x: Some[_] => throwException(s"Internal Error: In .ref for $this got '$topBindingOpt' and '$x'")
-        }
-      // Literals
-      case Some(ElementLitBinding(litArg)) => litArg
-      case Some(BundleLitBinding(litMap)) =>
-        litMap.get(this) match {
-          case Some(litArg) => litArg
-          // TODO make a Const once const is supported in firtool
-          case _ => materializeWire() // FIXME FIRRTL doesn't have Bundle literal expressions
-        }
-      case Some(VecLitBinding(litMap)) =>
-        litMap.get(this) match {
-          case Some(litArg) => litArg
-          // TODO make a Const once const is supported in firtool
-          case _ => materializeWire() // FIXME FIRRTL doesn't have Vec literal expressions
-        }
-      case Some(DontCareBinding()) =>
-        materializeWire() // FIXME FIRRTL doesn't have a DontCare expression so materialize a Wire
-      // Non-literals
-      case Some(binding: TopBinding) =>
-        if (Builder.currentModule.isDefined) {
-          // This is allowed (among other cases) for evaluating args of Printf / Assert / Printable, which are
-          // partially resolved *after* elaboration completes. If this is resolved, the check should be unconditional.
-          requireVisible()
-        }
-        Node(this)
-      case opt => throwException(s"internal error: unknown binding $opt in generating LHS ref")
-    }
   }
 
   // Recursively set the parent of the start Data and any children (eg. in an Aggregate)
