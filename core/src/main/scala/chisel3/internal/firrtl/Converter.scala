@@ -5,11 +5,13 @@ package chisel3.internal.firrtl
 import chisel3._
 import chisel3.experimental._
 import chisel3.experimental.{NoSourceInfo, SourceInfo, SourceLine, UnlocatableSourceInfo}
+import chisel3.properties.Property
 import firrtl.{ir => fir}
 import chisel3.internal.{castToInt, throwException, HasId}
 import chisel3.EnumType
 import scala.annotation.{nowarn, tailrec}
 import scala.collection.immutable.{Queue, VectorBuilder}
+import scala.reflect.runtime.universe.typeOf
 
 @nowarn("msg=class Port") // delete when Port becomes private
 private[chisel3] object Converter {
@@ -343,14 +345,17 @@ private[chisel3] object Converter {
         fir.ProbeType(extractType(t, clearDir, info, false, checkConst))
       }
     // extract underlying type for const
-    case t: Data if (checkConst && t.isConst) => fir.ConstType(extractType(t, clearDir, info, checkProbe, false))
-    case _: Clock                             => fir.ClockType
-    case _: AsyncReset                        => fir.AsyncResetType
-    case _: ResetType                         => fir.ResetType
-    case t: EnumType                          => fir.UIntType(convert(t.width))
-    case t: UInt                              => fir.UIntType(convert(t.width))
-    case t: SInt                              => fir.SIntType(convert(t.width))
-    case t: Analog => fir.AnalogType(convert(t.width))
+    case t: Data if (checkConst && t.isConst)     => fir.ConstType(extractType(t, clearDir, info, checkProbe, false))
+    case _: Clock                                 => fir.ClockType
+    case _: AsyncReset                            => fir.AsyncResetType
+    case _: ResetType                             => fir.ResetType
+    case t: EnumType                              => fir.UIntType(convert(t.width))
+    case t: UInt                                  => fir.UIntType(convert(t.width))
+    case t: SInt                                  => fir.SIntType(convert(t.width))
+    case t: Analog                                => fir.AnalogType(convert(t.width))
+    case t: Property[_] if t.tpe =:= typeOf[Int]  => fir.IntegerPropertyType
+    case t: Property[_] if t.tpe =:= typeOf[Long] => fir.IntegerPropertyType
+    case t: Property[_] if t.tpe =:= typeOf[BigInt] => fir.IntegerPropertyType
     case t: Vec[_] =>
       val childClearDir = clearDir ||
         t.specifiedDirection == SpecifiedDirection.Input || t.specifiedDirection == SpecifiedDirection.Output
