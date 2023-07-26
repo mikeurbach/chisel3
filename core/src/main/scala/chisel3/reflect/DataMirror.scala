@@ -129,7 +129,9 @@ object DataMirror {
     * // )
     * }}}
     */
-  def modulePorts(target: BaseModule)(implicit si: SourceInfo): Seq[(String, IsBindable)] = target.getChiselPorts
+  def modulePorts(target: BaseModule)(implicit si: SourceInfo): Seq[(String, Data)] = target.getChiselPorts.collect {
+    case (name, port: Data) => (name, port)
+  }
 
   /** Returns a recursive representation of a module's ports with underscore-qualified names
     * {{{
@@ -160,8 +162,8 @@ object DataMirror {
     *       of its children.
     * @see [[DataMirror.modulePorts]] for a non-recursive representation of the ports.
     */
-  def fullModulePorts(target: BaseModule)(implicit si: SourceInfo): Seq[(String, IsBindable)] = {
-    def getPortNames(name: String, isBindable: IsBindable): Seq[(String, IsBindable)] =
+  def fullModulePorts(target: BaseModule)(implicit si: SourceInfo): Seq[(String, Data)] = {
+    def getPortNames(name: String, isBindable: Data): Seq[(String, Data)] =
       Seq(name -> isBindable) ++ (isBindable match {
         case _: Element => Seq()
         case r: Record =>
@@ -173,8 +175,8 @@ object DataMirror {
         case v: Vec[_] => v.zipWithIndex.flatMap { case (elt, index) => getPortNames(s"${name}_${index}", elt) }
       })
     modulePorts(target).flatMap {
-      case (name, isBindable) =>
-        getPortNames(name, isBindable).toList
+      case (name, data) =>
+        getPortNames(name, data).toList
     }
   }
 
