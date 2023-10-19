@@ -315,6 +315,7 @@ private[chisel3] trait HasId extends chisel3.InstanceId {
         case (Some(c), _) => refName(c)
         case (None, d: Data) if d.topBindingOpt == Some(CrossModuleBinding) => _ref.get.localName
         case (None, _: MemBase[_]) => _ref.get.localName
+        case (None, _) if _ref.isDefined => _ref.get.localName
         case (None, _) =>
           throwException(s"signalName/pathName should be called after circuit elaboration: $this, ${_parent}")
       }
